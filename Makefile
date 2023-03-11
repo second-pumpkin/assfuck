@@ -1,4 +1,4 @@
-files := assfuck compile util error preprocess
+files := assfuck compile util error preprocess finish
 
 all: ${files} link
 
@@ -17,6 +17,9 @@ error: error.asm
 
 preprocess: preprocess.asm
 	nasm -f elf64 preprocess.asm
+
+finish: finish.asm
+	nasm -f elf64 finish.asm
 
 link: ${files}
 	ld ${wildcard *.o} -o assfuck

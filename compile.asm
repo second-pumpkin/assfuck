@@ -33,6 +33,8 @@ section .rodata
 		  "mov rsi, rbx",10,	\
 		  "mov rdx, 1",10,	\
 		  "syscall",10,10,0
+	
+	tmp_asm db "bf_tmp.asm",0
 
 section .data
 	; brackets consist of two parts: a conditional jump and a label
@@ -58,6 +60,7 @@ extern _write
 extern _flush_write
 extern _error
 extern _num_to_str
+extern _finish
 
 _compile:
 	; push a parameter so the syscalls don't modify it
@@ -77,7 +80,7 @@ _compile:
 
 	; create/open the output (asm) file
 	mov rax, 2	; syscall open
-	pop rdi		; outfile
+	mov rdi, tmp_asm; temporary file to put assembly in
 	mov rsi, 101	; O_CREAT | O_WRONLY
 	mov rdx, 0x1a4	; mode 644
 	syscall
@@ -205,4 +208,9 @@ _compile:
 	mov rdi, footer
 	call _write
 	call _flush_write
+
+	; finish up
+	xor rdi, rdi	; mode 0
+	pop rsi		; outfile
+	call _finish
 ret

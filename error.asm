@@ -64,6 +64,7 @@ _error:
 	mov rdi, rbx
 	mov rsi, error_num
 	call _num_to_str
+	mov byte [rsi+rax-1], 10 ; newline imo
 	
 	mov rdx, rax
 	mov rax, 1
