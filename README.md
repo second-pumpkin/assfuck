@@ -18,10 +18,10 @@ assfuck input.bf -o output
 
 command line arguments:
 
-- -o: specifies output file. required
-- -a: output generated assembly
-- -j: output an object file
-- -f: specify the name of the function. if -a isn't specified elsewhere, this implies -j. this option can be used to call brainfuck routines from c:
+- `-o file`: specifies output file. required
+- `-a`: output generated assembly
+- `-j`: output an object file
+- `-f function`: specify the name of the function. if -a isn't specified elsewhere, this implies -j. this option can be used to call brainfuck routines from c:
 
 (*hello_world.bf prints "hello world"*)
 
@@ -38,6 +38,12 @@ int main() {
 	hello();
 }
 ```
+
+```
+gcc caller.c hello_world.o -o hello_world
+```
+
+*output: "hello world"*
 
 ---
 
