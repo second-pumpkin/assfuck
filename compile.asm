@@ -1,23 +1,24 @@
 ; _compile actually compiles the brainfuck file
-
+;
 ;     the input file's path is passed in as a pointer to a null-terminated string in rdi
 ;     the output file's path is passed in the same way in rsi
+;     the mode (used by _finish) is passed in by rdx
+;     if the -f argument was used, rcx contains a pointer to a null-terminated string
+;     determining the name of the function. otherwise, it should be zero
 
 ; macros (very cool)
 %define INFD 3 		; input file descriptor
 %define BUFSIZE 128	; read buffer size
 
 section .rodata
-	header db "section .data",10,			\
-		  "memory db 4096 dup (0)",10,10,	\
-		  "section .text",10,			\
-		  "global _start",10,			\
-		  "_start:",10,				\
-		  "lea rbx, [rel memory]",10,10,0
-	footer db "mov rax, 60",10,	\
-		  "xor rdi, rdi",10,	\
-		  "syscall",0
-	
+	header db  "section .data",10,			\
+		   "memory db 4096 dup (0)",10,10,	\
+		   "section .text",10,			\
+		   "global ",0
+	start db    "_start",0
+	newline db 10,0
+	header2 db ":",10,				\
+		   "lea rbx, [rel memory]",10,10,0
 	; simple static operations (+, -, <, >, ., and ,)
 	increment db "inc byte [rbx]",10,10,0
 	decrement db "dec byte [rbx]",10,10,0
@@ -49,7 +50,13 @@ section .data
 	closejmpnum db 16 dup(0)
 	closelabel db "LE"
 	closelabelnum db 16 dup(0)
-
+	
+	; footer text shared by every program with 5 bytes of data at the end to write a ret instruction to
+	footer db  "mov rax, 60",10,	\
+		   "xor rdi, rdi",10,	\
+		   "syscall"
+	footerfooter db 5 dup(0)
+	
 section .bss
 	readbuf db BUFSIZE dup(?)
 
@@ -63,8 +70,10 @@ extern _num_to_str
 extern _finish
 
 _compile:
-	; push a parameter so the syscalls don't modify it
+	; push some parameters so they're not modified
 	push rsi
+	push rdx
+	push rcx
 
 	; open the input file (pathname is already in the proper register, rdi)
 	mov rax, 2	; syscall open
@@ -87,8 +96,30 @@ _compile:
 	cmp rax, 0
 	js _error
 	
-	; first write the first section every program will share
+	; write the initial text every program will share
+	; if the value on the top of the stack is nonzero, write the header
+	; with the string pointed to by that value as the entrypoint.
+	; additionally, append a ret instruction to the footer.
+	; otherwise, write the header with _start as the entrypoint.
 	mov rdi, header
+	call _write
+
+	cmp qword [rsp], 0
+	jne update_footer
+	mov qword [rsp], start
+	jmp write_header
+
+	update_footer:
+	mov dword [footerfooter], 0x7465720a ; \nret but backwards because this is a little endian architecture
+	
+	write_header:
+	mov rdi, qword [rsp]
+	call _write
+	mov rdi, newline
+	call _write
+	pop rdi
+	call _write
+	mov rdi, header2
 	call _write
 
 	; progressively read through the file, and write instructions to the output file
@@ -210,7 +241,7 @@ _compile:
 	call _flush_write
 
 	; finish up
-	xor rdi, rdi	; mode 0
+	pop rdi		; mode
 	pop rsi		; outfile
 	call _finish
 ret

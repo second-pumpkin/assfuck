@@ -19,6 +19,8 @@ _start:
 	; process each argument. argv always ends in zero, so loop until it hits that
 	xor rdi, rdi
 	xor rsi, rsi
+	xor rdx, rdx
+	xor rcx, rcx
 	argv_loop:
 		; exit if the zero has been reached
 		cmp qword [rsp], 0
@@ -27,17 +29,36 @@ _start:
 		; detect - arguments
 		pop rbx
 		cmp byte [rbx], '-'
-		jne set_infile
-		
-		; -o
-		cmp byte [rbx+1], 'o'
-		jne continue_argv_loop
-		pop rsi
+		je a1
+		mov rdi, rbx ; arguments not prefixed with - are treated as the input file
 		jmp continue_argv_loop
 		
-		; arguments not prefixed with a - are treated as the input file
-		set_infile:
-		mov rdi, rbx
+		; -o
+		a1: cmp byte [rbx+1], 'o'
+		jne a2
+		pop rsi
+		jmp continue_argv_loop
+
+		; -a
+		a2: cmp byte [rbx+1], 'a'
+		jne a3
+		mov rdx, 1
+		jmp continue_argv_loop
+
+		; -j
+		a3: cmp byte [rbx+1], 'j'
+		jne a4
+		mov rdx, 2
+		jmp continue_argv_loop
+
+		; -f
+		a4: cmp byte [rbx+1], 'f'
+		jne continue_argv_loop
+		pop rcx
+		cmp rdx, 0
+		jne continue_argv_loop
+		mov rdx, 2
+
 		continue_argv_loop:
 	jmp argv_loop
 	exit_argv_loop:
