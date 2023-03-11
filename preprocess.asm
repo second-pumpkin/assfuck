@@ -16,7 +16,6 @@ global _preprocess
 _preprocess:
 	; loop and read through the entire file
 	xor rbx, rbx ; current loop depth is kept track of with rbx
-	xor r12, r12   ; maximum loop depth is stored in r12
 	read_loop:
 		; read a section of text from the input file
 		xor rax, rax
@@ -36,11 +35,6 @@ _preprocess:
 			cmp byte [readbuf+r13], '['
 			jne c1
 			inc rbx
-
-			; if the new loop depth is higher than the old max, update it
-			cmp rbx, r12
-			cmova r12, rbx
-
 			jmp next_byte
 			
 			; ] decreases the loop depth. if the loop depth goes below zero, the file is invalid
@@ -66,10 +60,10 @@ _preprocess:
 	syscall
 
 	; set the return value
-	mov rax, r12
+	xor rax, rax
 	cmp rbx, 0
 	je exit
-	mov rax, -1
+	mov rax, -979
 
 	exit:
 ret

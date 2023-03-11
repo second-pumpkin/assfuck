@@ -8,8 +8,10 @@ section .rodata
 	unbalanced_brackets db 41,"ERROR: unbalanced brackets in input file",10
         unknown_input db 26,"ERROR: unknown input file",10
         access_denied db 25,"ERROR: permission denied",10
+	unspecified_input db 32,"ERROR: input file not specified",10
+	unspecified_output db 48,"ERROR: output file not specified. use -o [file]",10
 
-	errors dq unbalanced_brackets, unknown_input, access_denied
+	errors dq unbalanced_brackets, unknown_input, access_denied, unspecified_input, unspecified_output
 
 section .bss
 	error_num db 8 dup(?) ; buffer to print the error number in
@@ -23,12 +25,16 @@ _error:
 	xor rbx, rbx
 	
 	; check the error number and set the error message depending on that
-	cmp rax, -1
+	cmp rax, -979
 	cmove rsi, [errors]	; unbalanced brackets
 	cmp rax, -2
-	cmove rsi, [errors+1]	; unknown input
+	cmove rsi, [errors+8]	; unknown input
 	cmp rax, -13
-	cmove rsi, [errors+2]	; permission denied
+	cmove rsi, [errors+16]	; permission denied
+	cmp rax, -999
+	cmove rsi, [errors+24]	; unspefied input
+	cmp rax, -1001
+	cmove rsi, [errors+32]	; unspecified output
 	
 	; if rsi is still zero, set it to a generic error message and mark that
 	cmp rsi, 0
@@ -50,9 +56,12 @@ _error:
 
 	; if the message was a gerneic error, print the error number as well
 	cmp rbx, 0
-	je exit
+	jns exit
+
+	not rbx
+	inc rbx
 	
-	mov rdi, rax
+	mov rdi, rbx
 	mov rsi, error_num
 	call _num_to_str
 	
