@@ -18,7 +18,14 @@ section .rodata
 	start db    "_start",0
 	newline db 10,0
 	header2 db ":",10,				\
+		   "push rbx",10,			\
 		   "lea rbx, [rel memory]",10,10,0
+	exit db    "mov rax, 60",10,			\
+		   "xor rdi, rdi",10,			\
+		   "syscall",0
+	return db  "pop rbx",10,			\
+		   "ret",0
+	
 	; simple static operations (+, -, <, >, ., and ,)
 	increment db "inc byte [rbx]",10,10,0
 	decrement db "dec byte [rbx]",10,10,0
@@ -50,12 +57,6 @@ section .data
 	closejmpnum db 16 dup(0)
 	closelabel db "LE"
 	closelabelnum db 16 dup(0)
-	
-	; footer text shared by every program with 5 bytes of data at the end to write a ret instruction to
-	footer db  "mov rax, 60",10,	\
-		   "xor rdi, rdi",10,	\
-		   "syscall"
-	footerfooter db 5 dup(0)
 	
 section .bss
 	readbuf db BUFSIZE dup(?)
@@ -99,28 +100,29 @@ _compile:
 	; write the initial text every program will share
 	; if the value on the top of the stack is nonzero, write the header
 	; with the string pointed to by that value as the entrypoint.
-	; additionally, append a ret instruction to the footer.
 	; otherwise, write the header with _start as the entrypoint.
 	mov rdi, header
 	call _write
 
 	cmp qword [rsp], 0
-	jne update_footer
-	mov qword [rsp], start
-	jmp write_header
+	jne write_header
+	push start
+	mov rbx, 4 ; magic number so we know to remove the string from the stack
 
-	update_footer:
-	mov dword [footerfooter], 0x7465720a ; \nret but backwards because this is a little endian architecture
-	
 	write_header:
 	mov rdi, qword [rsp]
 	call _write
 	mov rdi, newline
 	call _write
-	pop rdi
+	mov rdi, qword [rsp]
 	call _write
 	mov rdi, header2
 	call _write
+
+	cmp rbx, 4
+	jne dont_pop
+	add rsp, 8
+	dont_pop:
 
 	; progressively read through the file, and write instructions to the output file
 	xor r13, r13 ; r13 stores the bracket number (increments every time a [ is encountered) 
@@ -235,12 +237,23 @@ _compile:
 	jmp read_loop
 
 	exit_read_loop:
-	; write the final section of code every program has, then flush the write buffer
-	mov rdi, footer
+	; write the final section of code, which is either a ret instruction or an exit syscall
+	; depending on whether or not the value at the top of the stack is nonzero
+	pop rdi
+	cmp rdi, 0
+	je footer_exit
+
+	mov rdi, return
+	jmp write_footer
+
+	footer_exit:
+	mov rdi, exit
+
+	write_footer:
 	call _write
 	call _flush_write
 
-	; finish up
+	; finish up: assemble, link and clean temporary files
 	pop rdi		; mode
 	pop rsi		; outfile
 	call _finish
