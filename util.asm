@@ -4,9 +4,11 @@
 %define BUFSIZE 128 ; write buffer size
 
 section .data
+	; _write
 	writebuf db BUFSIZE dup(0)
 	writebufend dq $
 	writebufpos dq writebuf ; keeps track of how far the write buffer has been written to
+	formatnumbuf db 32 dup(0) ; 32 bytes to store number strings for use in formatted strings
 
 section .text
 global _write
@@ -14,10 +16,53 @@ global _flush_write
 global _num_to_str
 
 ; append the null-terminated string passed in by a pointer on rdi to writebuf, and if it fills flush the buffer to the file
+; the strings passed in can be formatted. a format specifier looks like %nt, where n is the argument number and t is the type.
+; arguments for formatted strings are passed in on the stack in reverse order so %0t represents the value at [rsp], %1t at [rsp+8], etc.
+; there are two types: d and s. d is a number, and s is a pointer to a string. d is assumed if a type isn't specified or the type is invalid
 _write:
 	; loop through and copy every byte from the input string to writebuf
 	mov rax, [writebufpos] ; load the position to write to the buffer at into rax
 	write_loop:
+		; if the character is a %, interpret the format specifier
+		cmp byte [rdi], '%'
+		jne skip_formatting
+		
+		; get the argument number that should be loaded in rcx
+		xor rcx, rcx
+		mov cl, byte [rdi+1]
+		sub rcx, 48 ; convert the argument number from ascii
+		
+		; interpret types, getting the string to write on rdi
+		push rdi
+		push rax
+		
+		; if the type is string, the corresponding argument is the string to write
+		cmp byte [rdi+2], 's'
+		jne t_d
+
+		mov rdi, qword [rsp+rcx*8+24]
+		jmp write_format	
+		
+		; otherwise, call _num_to_str and set that as the string to write
+		t_d:
+		mov rdi, qword [rsp+rcx*8+24]
+		mov rsi, formatnumbuf
+		call _num_to_str
+		mov rdi, formatnumbuf
+
+		write_format:
+		; write the string set up in rdi previously
+		; writebufpos needs to be updated so _write functions correctly
+		pop qword [writebufpos]
+		call _write
+		mov rax, [writebufpos]
+		pop rdi
+
+		; skip past the format specifier to continue the write
+		add rdi, 3
+		
+		skip_formatting:
+
 		; copy the byte
 		mov cl, byte [rdi]
 		mov byte [rax], cl

@@ -11,36 +11,52 @@
 %define BUFSIZE 128	; read buffer size
 
 section .rodata
-	header db  "section .data",10,			\
-		   "memory db 4096 dup (0)",10,10,	\
-		   "section .text",10,			\
-		   "global ",0
-	start db    "_start",0
-	newline db 10,0
-	header2 db ":",10,				\
-		   "push rbx",10,			\
-		   "lea rbx, [rel memory]",10,10,0
-	exit db    "mov rax, 60",10,			\
-		   "xor rdi, rdi",10,			\
-		   "syscall",0
-	return db  "pop rbx",10,			\
-		   "ret",0
+	; formatted strings defining stuff to be written as assembly
+	; see the definition of _write for an explanation on the format specifier format
+	header_program db				\
+		"section .data",10,			\
+		"memory db %0d dup(0)",10,		\
+		10,					\
+		"section .text",10,			\
+		"global _start",10,			\
+		"_start:",10,				\
+		"lea rbx, [rel memory]",10,		\
+		10,0
+	header_function db				\
+		"section .data",10,			\
+		"memory db %0d dup(0)",10,		\
+		10,					\
+		"section .text",10,			\
+		"global %1s",10,			\
+		"%1s:",10,				\
+		"pop rbx",10,				\
+		"lea rbx, [rel memory]",10,		\
+		10,0
+	footer_program db				\
+		"mov rax, 60",10,			\
+		"xor rdi, rdi",10,			\
+		"syscall",10,0
+	footer_function db				\
+		"pop rbx",10,				\
+		"ret",10,0				\
 	
 	; simple static operations (+, -, <, >, ., and ,)
 	increment db "inc byte [rbx]",10,10,0
 	decrement db "dec byte [rbx]",10,10,0
 	shiftl db "dec rbx",10,10,0
 	shiftr db "inc rbx",10,10,0
-	printc db "mov rax, 1",10,	\
-		  "mov rdi, 1",10,	\
-		  "mov rsi, rbx",10,	\
-		  "mov rdx, 1",10,	\
-		  "syscall",10,10,0
-	getc db   "xor rax, rax",10,	\
-		  "xor rdi, rdi",10,	\
-		  "mov rsi, rbx",10,	\
-		  "mov rdx, 1",10,	\
-		  "syscall",10,10,0
+	printc db			\
+		"mov rax, 1",10,	\
+		"mov rdi, 1",10,	\
+		"mov rsi, rbx",10,	\
+		"mov rdx, 1",10,	\
+		"syscall",10,10,0
+	getc db 			\
+		"xor rax, rax",10,	\
+		"xor rdi, rdi",10,	\
+		"mov rsi, rbx",10,	\
+		"mov rdx, 1",10,	\
+		"syscall",10,10,0
 	
 	tmp_asm db "bf_tmp.asm",0
 
@@ -97,33 +113,29 @@ _compile:
 	cmp rax, 0
 	js _error
 	
-	; write the initial text every program will share
-	; if the value on the top of the stack is nonzero, write the header
-	; with the string pointed to by that value as the entrypoint.
-	; otherwise, write the header with _start as the entrypoint.
-	mov rdi, header
-	call _write
-
+	; write the header text. the value on the top of the stack points to
+	; a string holding the name of the function. if that value is 0,
+	; the program is a standalone executable rather than a function,
+	; which requires a different header.
 	cmp qword [rsp], 0
-	jne write_header
-	push start
-	mov rbx, 4 ; magic number so we know to remove the string from the stack
-
-	write_header:
-	mov rdi, qword [rsp]
+	jne write_function_header
+	
+	; program header
+	mov rdi, header_program
+	push MEMSIZE
 	call _write
-	mov rdi, newline
-	call _write
-	mov rdi, qword [rsp]
-	call _write
-	mov rdi, header2
-	call _write
-
-	cmp rbx, 4
-	jne dont_pop
 	add rsp, 8
-	dont_pop:
+	jmp exit_header
 
+	write_function_header:
+	; function header
+	push qword [rsp]
+	push MEMSIZE
+	mov rdi, header_function
+	call _write
+	add rsp, 16
+
+	exit_header:
 	; progressively read through the file, and write instructions to the output file
 	xor r13, r13 ; r13 stores the bracket number (increments every time a [ is encountered) 
 	read_loop:
@@ -241,13 +253,13 @@ _compile:
 	; depending on whether or not the value at the top of the stack is nonzero
 	pop rdi
 	cmp rdi, 0
-	je footer_exit
+	je program_footer
 
-	mov rdi, return
+	mov rdi, footer_function
 	jmp write_footer
 
-	footer_exit:
-	mov rdi, exit
+	program_footer:
+	mov rdi, footer_program
 
 	write_footer:
 	call _write
