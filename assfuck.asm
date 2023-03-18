@@ -1,8 +1,24 @@
 ; this file will deal with command line arguments and set the appropriate parameters
 
 section .rodata
-	infile db "./example.bf",0	; file that will be compiled
-	outfile db "./example.asm",0	; compiled file path
+	helptext db 									\
+		"usage: assfuck [input] -o [output] [options]",10,			\
+		10,									\
+		"options:",10,								\
+		"    -o [file]",10,							\
+		"        specifies the output file. required.",10,			\
+		"    -f [func]",10,							\
+		"        output an object file defining a function named func.",10,	\
+		"        if -a isn't specified, this implies -j.",10,			\
+		"    -a",10,								\
+		"        output assembly only.",10,					\
+		"    -j",10,								\
+		"        output an object file only.",10,				\
+		"    -h",10,								\
+		"        print this text and exit.",10,					\
+		10
+	helptextsize dq $-helptext
+
 
 section .data
 	its db 8 dup(0)
@@ -53,11 +69,17 @@ _start:
 
 		; -f
 		a4: cmp byte [rbx+1], 'f'
-		jne continue_argv_loop
+		jne a5
 		pop rcx
 		cmp rdx, 0
 		jne continue_argv_loop
 		mov rdx, 2
+		jmp continue_argv_loop
+
+		; -h
+		a5: cmp byte [rbx+1], 'h'
+		jne continue_argv_loop
+		jmp _help
 
 		continue_argv_loop:
 	jmp argv_loop
@@ -81,4 +103,17 @@ _start:
 	; exit success
 	mov rax, 60
 	mov rdi, 0
+	syscall
+
+_help:
+	; print the help text
+	mov rax, 1	; syscall write
+	mov rdi, 1	; stdout
+	mov rsi, helptext
+	mov rdx, qword [helptextsize]
+	syscall
+
+	; exit
+	mov rax, 60	; syscall exit
+	xor rdi, rdi	; exit success
 	syscall

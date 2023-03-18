@@ -26,6 +26,7 @@ command line arguments:
 - `-a`: output generated assembly
 - `-j`: output an object file
 - `-f func`: output an object file defining a function of name `func`. if -a isn't specified, this implies -j
+- `-h`: print help text and exit
 
 ---
 
